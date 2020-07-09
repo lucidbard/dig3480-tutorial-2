@@ -8,6 +8,10 @@ The steps are outlined both here as well as in the README.md file in the reposit
 
 You will be using the script `caam` to submit assignments. Each time you checkout a repository for the first time, you will enter the "register" command. Then, when you wish to submit your work, you will use the "submit" command.
 
+### Main Character and First Script
+In this tutorial, you learn how to import assets and set up the main character.
+###  
+
 ### Register
 
 `./caam register`
