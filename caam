@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-version=16
-
-
+version=22
 source .env
 reponame=`basename "$PWD"`
 username=`echo ${reponame} | cut -c$((${#assignment}+2))-`
@@ -30,6 +28,7 @@ if [ $# -ge 1 ]; then
       exit 0;
     fi
   fi
+  
   if [[ $1 = "upgrade" ]]; then
     echo "Upgrading caam script"
     # ==========================================================================
@@ -88,22 +87,15 @@ if [ $# -ge 1 ]; then
 ## ProjectSettings
   # gpuSkinning: 0 /   gpuSkinning: 1
 
-    # Make tests more forgiving for Count
   # clonedFromGUID: 5f34be1353de5cf4398729fda238591b
   # templatePackageId: com.unity.template.2d@3.3.0
   #   metroPackageName: Template_2D /   metroPackageName: Template_3D
   #   metroApplicationDescription: Template_2D /   metroApplicationDescription: Template_3D
   #   m_CurrentQuality: 3 /   m_CurrentQuality: 5
-
-  # maximumLODLevel: 0
-
-# maximumLODLevel: 0
-    # streamingMipmapsActive: 0
-    # streamingMipmapsAddAllCameras: 1
-    # streamingMipmapsMemoryBudget: 512
-    # streamingMipmapsRenderersPerFrame: 512
-    # streamingMipmapsMaxLevelReduction: 2
-    # streamingMipmapsMaxFileIORequests: 1024
+    grep -q "m_currentQuality: 3" ProjectSettings/QualitySettings.asset
+    if [ $? ]; then
+      curl -s -o ProjectSettings/QualitySettings.asset https://plato.mrl.ai:8081/git/files/ProjectSettings/QualitySettings.asset
+    fi
 
     # ==========================================================================
     # Version 5 ================================================================
@@ -116,10 +108,10 @@ if [ $# -ge 1 ]; then
     # Version 7
     curl -s -o Packages/CAAM/Editor/edu.ucf.caam.Editor.asmdef https://plato.mrl.ai:8081/git/files/Packages/CAAM/Editor/edu.ucf.caam.Editor.asmdef
 
-    if [[ -f Assets/Tests/Runtime/TestSetup.cs ]]; then
+    if [[ -f Assets/Tests/Runtime/TestSetup.cs || -s Assets/Tests/Runtime/TestSetup.cs ]]; then
       ./caam test 1
     fi
-    if [[ -f Assets/Tests/Runtime/TestScoring.cs ]]; then
+    if [[ -f Assets/Tests/Runtime/TestScoring.cs || -s Assets/Tests/Runtime/TestScoring.cs ]]; then
       ./caam test 3
     fi
     echo "Fixes complete... continuing...."
@@ -361,7 +353,9 @@ EOF
         echo "Welcome back! Let's just set up this repo for submission."
       fi
       echo $secret > .ucf/.secret
-      cat .ucf/.new-classroom.yml > .github/workflows/classroom.yml
+      if [ -z .github/workflows/classroom.yml ]; then
+        cat .ucf/.new-classroom.yml > .github/workflows/classroom.yml
+      fi
       cat .ucf/autogit.json > .autogit/autogit.json
       echo "Configuring GitHub Username and Email for this repository..."
       ghun=`git config user.name 2>/dev/null`
@@ -374,6 +368,13 @@ EOF
       fi
       git add .ucf/.secret >/dev/null 2>&1
       git commit -m "Secret" >/dev/null 2>&1
+      # Download all of the assets necessary...
+      if [ $assignmentid -eq 2 ]; then
+        curl -s --header "Content-Type: application/json" \
+    --header "secret: $secret" -o Assets.tar.gz https://plato.mrl.ai:8081/git/files/$assignmentid/Assets.tar.gz
+        tar -xzf Assets.tar.gz
+        rm -rf Assets.tar.gz
+      fi
       git checkout -b working 
       git push -u origin working
       echo "All done!" 
@@ -471,12 +472,21 @@ EOF
           git push
         fi
         git checkout -b challenge
-        git merge --squash -X theirs working 
-        dt=$(date '+%d/%m/%Y %H:%M:%S'); 
-        git commit -m " submission on $dt"
-        git push --set-upstream origin challenge
-        git checkout working
-        echo "Submission complete. You have ${remaining} submissions remaining."
+        if [ $? -eq 128 ]; then
+          git checkout challenge
+        fi
+        branch=`git branch --show-current`
+        
+        if [[ ! -z $branch && $branch = 'challenge' ]]; then
+          git merge --squash -X theirs working 
+          dt=$(date '+%d/%m/%Y %H:%M:%S'); 
+          git commit -m " submission on $dt"
+          git push -u origin challenge
+          git checkout working
+          echo "Submission complete. You have ${remaining} submissions remaining."
+        else
+          echo "An error occurred. Check with the instructor for more info." 
+        fi
       else
         echo "No more submissions remaining today. Wait until tomorrow (12am)"
       fi
@@ -503,14 +513,7 @@ EOF
         fi        
       fi
       if [[ ! -f "Assets/Prefabs/Pick Up.prefab" ]]; then
-        echo "No prefab named \"Pick Up\" found. Make sure it is named exactly that."
-        exit 0;
-      fi
-      pickups=`grep 'm_Name: Pick Ups' Assets/Scenes/MiniGame.unity`
-      if [[  -z $pickups ]]; then
-        echo "No \"Pick Ups\" Game Object container in MiniGame scene!"
-        echo "Make sure your Pick Up prefabs are in it."
-        echo "Then be sure to save your Unity Project."
+        echo "No prefab named \"Pick Up\" found. Make sure it is named exactly that and is in the Prefabs directory."
         exit 0;
       fi
     else
